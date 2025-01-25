@@ -1,9 +1,11 @@
 #![no_std]
 #![no_main]
 
+mod dht11;
 mod init;
 mod logging;
 
+use dht11::spawn_dht11;
 use init::{InitPins, init_fw_and_pins};
 use logging::setup_usb_logging;
 
@@ -16,8 +18,6 @@ use embassy_rp::rtc::Rtc;
 use embassy_rp::usb::InterruptHandler as UsbInterruptHandler;
 use embassy_time::Timer;
 use log::info;
-use rand::rngs::SmallRng;
-use rand::{Rng, SeedableRng};
 
 // need to import to top-level
 use {defmt_rtt as _, panic_probe as _};
@@ -60,18 +60,6 @@ async fn main(spawner: Spawner) {
     // init firmware, network, and pins
     let _control = init_fw_and_pins(&spawner, init_pins).await;
 
-    // jump to main loop
-    main_loop().await;
-}
-
-async fn main_loop() -> ! {
-    // rng and main loop
-    let mut rng = SmallRng::seed_from_u64(embassy_time::Instant::now().as_micros());
-    let mut count = 0;
-    loop {
-        info!("count: {count}");
-        Timer::after_millis(rng.gen_range(100..1000)).await;
-
-        count += 1;
-    }
+    // spawn dht11 monitor
+    spawn_dht11(&spawner, periphs.PIN_22);
 }
