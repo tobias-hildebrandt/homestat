@@ -2,18 +2,20 @@
 #![no_main]
 
 use cyw43_pio::{DEFAULT_CLOCK_DIVIDER, PioSpi};
-use defmt::*;
 use embassy_executor::Spawner;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Level, Output};
-use embassy_rp::peripherals::{DMA_CH0, PIO0};
-use embassy_rp::pio::{InterruptHandler, Pio};
+use embassy_rp::peripherals::{DMA_CH0, PIO0, USB};
+use embassy_rp::pio::{InterruptHandler as PioInterruptHandler, Pio};
+use embassy_rp::usb::{Driver as UsbDriver, InterruptHandler as UsbInterruptHandler};
 use embassy_time::{Duration, Timer};
+use log::info;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {
-    PIO0_IRQ_0 => InterruptHandler<PIO0>;
+    PIO0_IRQ_0 => PioInterruptHandler<PIO0>;
+    USBCTRL_IRQ => UsbInterruptHandler<USB>;
 });
 
 #[embassy_executor::task]
@@ -36,6 +38,9 @@ async fn main(spawner: Spawner) {
     //let fw = unsafe { core::slice::from_raw_parts(0x10100000 as *const u8, 230321) };
     //let clm = unsafe { core::slice::from_raw_parts(0x10140000 as *const u8, 4752) };
 
+    let usb_driver = UsbDriver::new(p.USB, Irqs);
+    spawner.spawn(logger_task(usb_driver)).unwrap();
+
     let pwr = Output::new(p.PIN_23, Level::Low);
     let cs = Output::new(p.PIN_25, Level::High);
     let mut pio = Pio::new(p.PIO0, Irqs);
@@ -53,7 +58,7 @@ async fn main(spawner: Spawner) {
     static STATE: StaticCell<cyw43::State> = StaticCell::new();
     let state = STATE.init(cyw43::State::new());
     let (_net_device, mut control, runner) = cyw43::new(state, pwr, spi, fw).await;
-    unwrap!(spawner.spawn(cyw43_task(runner)));
+    spawner.spawn(cyw43_task(runner)).unwrap();
 
     control.init(clm).await;
     control
@@ -61,13 +66,21 @@ async fn main(spawner: Spawner) {
         .await;
 
     let delay = Duration::from_secs(1);
+    let mut count = 0;
     loop {
-        info!("led on!");
+        info!("{count} on");
         control.gpio_set(0, true).await;
         Timer::after(delay).await;
 
-        info!("led off!");
+        info!("{count} off");
         control.gpio_set(0, false).await;
         Timer::after(delay).await;
+
+        count += 1;
     }
+}
+
+#[embassy_executor::task]
+async fn logger_task(driver: UsbDriver<'static, USB>) -> ! {
+    embassy_usb_logger::run!(1024, log::LevelFilter::Info, driver);
 }
