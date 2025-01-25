@@ -1,7 +1,12 @@
+cargo-features = ["per-package-target"]
+
 [package]
 name = "homestat-rp"
 version = "0.1.0"
 edition = "2024"
+# currently bugged: https://github.com/rust-lang/cargo/issues/14291
+default-target = "thumbv6m-none-eabi"
+forced-target = "thumbv6m-none-eabi"
 
 [[bin]]
 name = "homestat-rp"
