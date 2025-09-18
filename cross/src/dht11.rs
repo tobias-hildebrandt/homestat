@@ -2,7 +2,7 @@ use core::fmt::Display;
 
 use embassy_executor::Spawner;
 use embassy_rp::{
-    Peripheral,
+    Peri,
     gpio::{Flex, Pin, Pull},
 };
 use embassy_time::{Instant, Timer};
@@ -11,7 +11,7 @@ use log::{info, warn};
 use serde::Serialize;
 
 /// Initializes DHT11 pin and spawns task.
-pub fn spawn_dht11(spawner: Spawner, pin: impl Peripheral<P = impl Pin> + 'static) {
+pub fn spawn_dht11(spawner: Spawner, pin: Peri<'static, impl Pin>) {
     let flex = Flex::new(pin);
 
     spawner.spawn(sender_task(flex)).unwrap();

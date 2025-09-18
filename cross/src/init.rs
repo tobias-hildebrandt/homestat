@@ -1,27 +1,32 @@
 use crate::Irqs;
-use cyw43::JoinOptions;
+use cyw43::Control;
 use cyw43_pio::{DEFAULT_CLOCK_DIVIDER, PioSpi};
 use embassy_executor::Spawner;
 use embassy_net::{Config, Stack, StackResources};
+use embassy_rp::Peri;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0};
 use embassy_rp::pio::Pio;
-use embassy_time::Timer;
 use log::info;
+use rand::rngs::SmallRng;
+use rand::{RngCore, SeedableRng};
 use static_cell::StaticCell;
 
 /// Set of [`embassy_rp::Peripherals`] needed to initialize firmware and pins.
 pub struct InitPins {
-    pub pin23: PIN_23,
-    pub pin24: PIN_24,
-    pub pin25: PIN_25,
-    pub pin29: PIN_29,
-    pub pio0: PIO0,
-    pub dma_ch: DMA_CH0,
+    pub pin23: Peri<'static, PIN_23>,
+    pub pin24: Peri<'static, PIN_24>,
+    pub pin25: Peri<'static, PIN_25>,
+    pub pin29: Peri<'static, PIN_29>,
+    pub pio0: Peri<'static, PIO0>,
+    pub dma_ch: Peri<'static, DMA_CH0>,
 }
 
 /// Initializes the firmware and pins, spawns firmware task.
-pub async fn init_fw_and_pins(spawner: Spawner, periphs: InitPins) -> Stack<'static> {
+pub async fn init_fw_and_pins(
+    spawner: Spawner,
+    periphs: InitPins,
+) -> (Stack<'static>, &'static mut Control<'static>) {
     // firmware
     let fw = include_bytes!("../../misc/43439A0.bin");
     // wifi firmware?
@@ -52,8 +57,12 @@ pub async fn init_fw_and_pins(spawner: Spawner, periphs: InitPins) -> Stack<'sta
     // set up pico w cym43 (network, pins, etc)
     static CYM43_STATE: StaticCell<cyw43::State> = StaticCell::new();
     let state = CYM43_STATE.init(cyw43::State::new());
-    let (net_device, mut control, runner) = cyw43::new(state, pwr, spi, fw).await;
+    let (net_device, control, runner) = cyw43::new(state, pwr, spi, fw).await;
     spawner.spawn(cyw43_task(runner)).unwrap();
+
+    // move control to static storage
+    static CONTROL: StaticCell<Control> = StaticCell::new();
+    let control = CONTROL.uninit().write(control);
 
     control.init(clm).await;
     control
@@ -70,7 +79,9 @@ pub async fn init_fw_and_pins(spawner: Spawner, periphs: InitPins) -> Stack<'sta
     //});
 
     // Generate random seed
-    let seed = 11111;
+    let seed = SmallRng::seed_from_u64(embassy_time::Instant::now().as_micros()).next_u64();
+
+    info!("network seed: {seed}");
 
     // Init network stack
     static RESOURCES: StaticCell<StackResources<5>> = StaticCell::new();
@@ -81,31 +92,9 @@ pub async fn init_fw_and_pins(spawner: Spawner, periphs: InitPins) -> Stack<'sta
         seed,
     );
 
-    let options = JoinOptions::new(env!("WIFI_PASSWORD").as_bytes());
-    let res = control.join(env!("WIFI_SSID"), options).await;
-
-    info!("wifi connect?: {:?}", res);
-
     spawner.spawn(net_task(runner)).unwrap();
 
-    info!("waiting for link...");
-    stack.wait_link_up().await;
-
-    info!("waiting for DHCP...");
-    stack.wait_config_up().await;
-
-    let current_config = loop {
-        match stack.config_v4() {
-            Some(conf) => break conf,
-            None => {
-                Timer::after_millis(500).await;
-            }
-        }
-    };
-
-    info!("config: {:?}", current_config);
-
-    stack
+    (stack, control)
 }
 
 #[embassy_executor::task]

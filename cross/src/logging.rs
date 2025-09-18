@@ -3,6 +3,7 @@ use core::fmt::{Display, Formatter};
 use chrono::TimeDelta;
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
+use embassy_rp::Peri;
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::Driver as UsbDriver;
 use embassy_usb::class::cdc_acm::{CdcAcmClass, State as CdcAcmState};
@@ -16,7 +17,7 @@ const LOG_BUFFER_SIZE: usize = 1024;
 const LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 
 /// Sets up USB logging, spawns logger task.
-pub fn setup_usb_logging(spawner: Spawner, usb: USB) {
+pub fn setup_usb_logging(spawner: Spawner, usb: Peri<'static, USB>) {
     let usb_driver = UsbDriver::new(usb, Irqs);
     spawner.spawn(logger_task(usb_driver)).unwrap();
 }
@@ -58,7 +59,13 @@ async fn logger_task(driver: UsbDriver<'static, USB>) -> ! {
             use core::fmt::Write;
             let level = record.level().as_str();
             let time = TimeLog::now();
-            write!(writer, "[{time}] [{level}] {}\r\n", record.args()).unwrap();
+            let module = record.module_path().unwrap_or("(no module)");
+            write!(
+                writer,
+                "[{time}] [{level:5}] [{module}] {}\r\n",
+                record.args()
+            )
+            .unwrap();
         },
         embassy_usb_logger::DummyHandler
     );

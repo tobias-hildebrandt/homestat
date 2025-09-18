@@ -7,7 +7,6 @@ mod logging;
 mod net;
 
 use dht11::spawn_dht11;
-use embassy_net::Stack;
 use init::{InitPins, init_fw_and_pins};
 use logging::setup_usb_logging;
 
@@ -21,7 +20,6 @@ use embassy_rp::usb::InterruptHandler as UsbInterruptHandler;
 use embassy_time::Timer;
 use log::info;
 use net::spawn_net;
-use static_cell::StaticCell;
 
 // need to import to top-level
 use {defmt_rtt as _, panic_probe as _};
@@ -62,16 +60,11 @@ async fn main(spawner: Spawner) {
     }
 
     // init firmware, network, and pins
-    let stack = init_fw_and_pins(spawner, init_pins).await;
-
-    let stack = *{
-        static CELL: StaticCell<Stack<'static>> = StaticCell::new();
-        CELL.uninit().write(stack)
-    };
+    let (stack, control) = init_fw_and_pins(spawner, init_pins).await;
 
     // spawn dht11 monitor
     spawn_dht11(spawner, periphs.PIN_22);
 
     // spawn network task
-    spawn_net(spawner, stack);
+    spawn_net(spawner, stack, control);
 }
