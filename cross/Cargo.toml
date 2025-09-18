@@ -57,6 +57,8 @@ embassy-net = { version = "0.7.1", features = [
     "multicast",
 ] }
 embassy-net-wiznet = { version = "0.2.1", features = ["defmt"] }
+embedded-nal-async = "0.8.0"
+embedded-io-async = { version = "0.6.1", features = ["defmt-03"] }
 embassy-futures = { version = "0.1.2" }
 assign-resources = "0.5.0"
 

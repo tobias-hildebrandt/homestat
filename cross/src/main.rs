@@ -17,7 +17,6 @@ use embassy_rp::peripherals::{PIO0, USB};
 use embassy_rp::pio::InterruptHandler as PioInterruptHandler;
 use embassy_rp::rtc::Rtc;
 use embassy_rp::usb::InterruptHandler as UsbInterruptHandler;
-use embassy_time::Timer;
 use log::info;
 use net::spawn_net;
 
@@ -46,10 +45,6 @@ async fn main(spawner: Spawner) {
 
     // immediately set up USB logging
     setup_usb_logging(spawner, periphs.USB);
-
-    // wait til it's OK
-    // TODO: replace with channel
-    Timer::after_millis(100).await;
 
     info!("usb logging complete");
 

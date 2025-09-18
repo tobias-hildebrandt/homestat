@@ -1268,6 +1268,8 @@ dependencies = [
  "embassy-time",
  "embassy-usb",
  "embassy-usb-logger",
+ "embedded-io-async",
+ "embedded-nal-async",
  "heapless 0.9.1",
  "homestat-wire",
  "log",
