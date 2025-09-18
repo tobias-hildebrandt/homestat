@@ -23,9 +23,9 @@ pub struct InitPins {
 /// Initializes the firmware and pins, spawns firmware task.
 pub async fn init_fw_and_pins(spawner: Spawner, periphs: InitPins) -> Stack<'static> {
     // firmware
-    let fw = include_bytes!("../../../misc/43439A0.bin");
+    let fw = include_bytes!("../../misc/43439A0.bin");
     // wifi firmware?
-    let clm = include_bytes!("../../../misc/43439A0_clm.bin");
+    let clm = include_bytes!("../../misc/43439A0_clm.bin");
 
     // To make flashing faster for development, you may want to flash the firmwares independently
     // at hardcoded addresses, instead of baking them into the program with `include_bytes!`:
@@ -86,7 +86,7 @@ pub async fn init_fw_and_pins(spawner: Spawner, periphs: InitPins) -> Stack<'sta
 
     info!("wifi connect?: {:?}", res);
 
-    spawner.spawn(net_task(runner));
+    spawner.spawn(net_task(runner)).unwrap();
 
     info!("waiting for link...");
     stack.wait_link_up().await;

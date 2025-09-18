@@ -1,5 +1,8 @@
 cargo-features = ["per-package-target"]
 
+# not actually a workspace
+[workspace]
+
 [package]
 name = "homestat-rp"
 version = "0.1.0"
@@ -19,7 +22,7 @@ bench = false
 # TODO: tidy unused libraries
 
 # homestat libs
-homestat-wire = { path = "../homestat-wire" }
+homestat-wire = { path = "../crates/homestat-wire" }
 
 # embassy
 embassy-embedded-hal = { version = "0.3.0", features = ["defmt"] }

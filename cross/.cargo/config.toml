@@ -1,7 +1,9 @@
-[target.'cfg(all(target_arch = "arm", target_os = "none"))']
-# runner = "cargo-flash --chip RP2040"
+build.target = "thumbv6m-none-eabi"
+
 # install from https://github.com/raspberrypi/pico-sdk-tools/releases
+[target.'cfg(all(target_arch = "arm", target_os = "none"))']
 runner = "picotool load --update --verify --execute -t elf"
+
 
 [env]
 DEFMT_LOG = "debug"
