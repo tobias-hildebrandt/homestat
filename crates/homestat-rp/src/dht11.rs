@@ -6,20 +6,26 @@ use embassy_rp::{
     gpio::{Flex, Pin, Pull},
 };
 use embassy_time::{Instant, Timer};
+use homestat_wire::{Humidity, Reading, Temperature, WholeAndDecimal};
 use log::{info, warn};
+use serde::Serialize;
 
 /// Initializes DHT11 pin and spawns task.
-pub fn spawn_dht11(spawner: &Spawner, pin: impl Peripheral<P = impl Pin> + 'static) {
+pub fn spawn_dht11(spawner: Spawner, pin: impl Peripheral<P = impl Pin> + 'static) {
     let flex = Flex::new(pin);
 
     spawner.spawn(sender_task(flex)).unwrap();
 }
 
 const NUM_BITS: usize = 40;
+const ENCODING_BUFFER_LEN: usize = 64;
 
 /// DHT11 task
 #[embassy_executor::task]
 async fn sender_task(mut flex: Flex<'static>) {
+    let mut buffer = [0u8; ENCODING_BUFFER_LEN];
+
+    buffer.fill(0);
     loop {
         flex.set_as_output();
         flex.set_high();
@@ -59,9 +65,14 @@ async fn sender_task(mut flex: Flex<'static>) {
         flex.set_high();
         flex.set_as_output();
 
-        let reading = Reading::from_durations(high_durations);
+        let reading = Dht11Reading::from_durations(high_durations);
         if let Some(valid) = reading {
             info!("reading: {}", valid);
+            let code_res = postcard::to_slice(&valid, &mut buffer);
+            match code_res {
+                Ok(coded) => info!("reading coded: {:?}", coded),
+                Err(e) => log::error!("encoding failed: {:?}", e),
+            }
         } else {
             warn!("checksum failure")
         };
@@ -70,25 +81,23 @@ async fn sender_task(mut flex: Flex<'static>) {
     }
 }
 
-#[derive(Debug)]
-struct Reading {
-    integral_humidity: u8,
-    decimal_humidity: u8,
-    integral_temp: u8,
-    decimal_temp: u8,
-}
+#[derive(Debug, Serialize)]
+struct Dht11Reading(Reading);
 
-impl Display for Reading {
+impl Display for Dht11Reading {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
             "{}.{}degC, {}.{}%RH",
-            self.integral_temp, self.decimal_temp, self.integral_humidity, self.decimal_humidity
+            self.0.temperature.0.integer,
+            self.0.temperature.0.decimal,
+            self.0.humidity.0.integer,
+            self.0.humidity.0.decimal,
         )
     }
 }
 
-impl Reading {
+impl Dht11Reading {
     fn from_durations(durations: [u64; NUM_BITS]) -> Option<Self> {
         let mut bits = [false; NUM_BITS];
         for index in 0..NUM_BITS {
@@ -105,12 +114,16 @@ impl Reading {
         if integral_humidity + decimal_humidity + integral_temp + decimal_temp != checksum {
             None
         } else {
-            Some(Self {
-                integral_humidity,
-                decimal_humidity,
-                integral_temp,
-                decimal_temp,
-            })
+            Some(Self(Reading {
+                temperature: Temperature(WholeAndDecimal {
+                    integer: integral_temp,
+                    decimal: decimal_temp,
+                }),
+                humidity: Humidity(WholeAndDecimal {
+                    integer: integral_humidity,
+                    decimal: decimal_temp,
+                }),
+            }))
         }
     }
 }

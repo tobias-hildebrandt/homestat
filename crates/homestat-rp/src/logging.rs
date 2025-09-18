@@ -16,7 +16,7 @@ const LOG_BUFFER_SIZE: usize = 1024;
 const LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 
 /// Sets up USB logging, spawns logger task.
-pub fn setup_usb_logging(spawner: &Spawner, usb: USB) {
+pub fn setup_usb_logging(spawner: Spawner, usb: USB) {
     let usb_driver = UsbDriver::new(usb, Irqs);
     spawner.spawn(logger_task(usb_driver)).unwrap();
 }

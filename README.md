@@ -1,4 +1,4 @@
-# Home Stat
+# HomeStat
 
-## Building RPI Pico W version
-`sudo ./misc/mount.sh && cargo run --release -p homestat-rp --target=thumbv6m-none-eabi && sudo fusermount -u mount/`
+## Running RPI Pico W version
+`cargo run --release -p homestat-rp --target=thumbv6m-none-eabi && cu -s 57600 -l /dev/ttyACM0`

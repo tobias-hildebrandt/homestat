@@ -1,6 +1,7 @@
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
-#runner = "probe-rs run --chip RP2040"
-runner = "elf2uf2-rs -d"
+# runner = "cargo-flash --chip RP2040"
+# install from https://github.com/raspberrypi/pico-sdk-tools/releases
+runner = "picotool load --update --verify --execute -t elf"
 
 [env]
 DEFMT_LOG = "debug"
