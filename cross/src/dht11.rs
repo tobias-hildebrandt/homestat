@@ -5,83 +5,59 @@ use embassy_rp::{
     Peri,
     gpio::{Flex, Pin, Pull},
 };
-use embassy_time::{Instant, Timer};
-use homestat_wire::{Humidity, Reading, Temperature, WholeAndDecimal};
-use log::{info, warn};
+use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
+use embassy_time::{Duration, Instant, Timer, WithTimeout};
+use homestat_wire::{Number, Reading, WithTimestamp};
+use log::{error, info};
 use serde::Serialize;
 
 /// Initializes DHT11 pin and spawns task.
 pub fn spawn_dht11(spawner: Spawner, pin: Peri<'static, impl Pin>) {
     let flex = Flex::new(pin);
 
-    spawner.spawn(sender_task(flex)).unwrap();
+    spawner
+        .spawn(dht11_task(flex))
+        .expect("unable to spawn DHT task");
 }
 
 const NUM_BITS: usize = 40;
-const ENCODING_BUFFER_LEN: usize = 64;
+
+// TODO: replace with single-slot channel?
+pub(crate) static READING: Mutex<ThreadModeRawMutex, Option<WithTimestamp<Option<Reading>>>> =
+    Mutex::new(None);
 
 /// DHT11 task
 #[embassy_executor::task]
-async fn sender_task(mut flex: Flex<'static>) {
-    let mut buffer = [0u8; ENCODING_BUFFER_LEN];
-
-    buffer.fill(0);
+async fn dht11_task(mut pin: Flex<'static>) {
     loop {
-        flex.set_as_output();
-        flex.set_high();
+        let current_reading = Dht11Reading::try_read(&mut pin).await;
+        // always set high after attempted reading
+        pin.set_high();
 
-        // must wait at least 1 second before any communication
-        Timer::after_secs(2).await;
+        let timestamp = Instant::now().as_micros();
 
-        // low for at least 18 MILLI SECONDS! NOT MICRO SECONDS
-        flex.set_low();
-        Timer::after_millis(20).await;
-
-        // high for 30 us
-        flex.set_high();
-        Timer::after_micros(30).await;
-
-        // set low, prepare for read
-        flex.set_low();
-        flex.set_pull(Pull::None);
-        flex.set_as_input();
-
-        // low 80 us
-        // high 80 us
-        flex.wait_for_falling_edge().await;
-
-        let mut high_durations = [0u64; NUM_BITS];
-
-        for duration in high_durations.iter_mut() {
-            // ~50 ms low
-            flex.wait_for_rising_edge().await;
-            let high_time = Instant::now().as_micros();
-            // high 27-28us or 70us
-            flex.wait_for_falling_edge().await;
-            let low_time = Instant::now().as_micros();
-            *duration = low_time - high_time;
+        match &current_reading {
+            Ok(r) => info!("dht reading at {:0>12} is {}", timestamp, r),
+            Err(e) => {
+                error!("dht reading at {:0>12} is error {:?}", timestamp, e);
+            }
         }
 
-        flex.set_high();
-        flex.set_as_output();
-
-        let reading = Dht11Reading::from_durations(high_durations);
-        if let Some(valid) = reading {
-            info!("reading: {}", valid);
-            let code_res = postcard::to_slice(&valid, &mut buffer);
-            match code_res {
-                Ok(coded) => info!("reading coded: {:?}", coded),
-                Err(e) => log::error!("encoding failed: {:?}", e),
-            }
-        } else {
-            warn!("checksum failure")
-        };
+        // update our mutex
+        {
+            let mut reading = READING.lock().await;
+            let new = WithTimestamp {
+                micros: timestamp,
+                inner: current_reading.map(|r| r.0).ok(),
+            };
+            *reading = Some(new);
+        }
 
         Timer::after_secs(1).await;
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 struct Dht11Reading(Reading);
 
 impl Display for Dht11Reading {
@@ -89,40 +65,145 @@ impl Display for Dht11Reading {
         write!(
             f,
             "{}.{}degC, {}.{}%RH",
-            self.0.temperature.0.integer,
-            self.0.temperature.0.decimal,
-            self.0.humidity.0.integer,
-            self.0.humidity.0.decimal,
+            self.0.temperature.whole,
+            self.0.temperature.tenths,
+            self.0.humidity.whole,
+            self.0.humidity.tenths,
         )
     }
 }
 
+#[derive(Debug, thiserror::Error)]
+enum ReadError {
+    #[error("Timeout at low start signal")]
+    StartLowTimeout,
+    #[error("Timeout at rising edge of start signal")]
+    StartRisingTimeout,
+    #[error("Timeout at falling edge of start signal")]
+    StartFallingTimeout,
+    #[error("Timeout at rising edge of data signal for bit {bit}")]
+    DataRisingTimeout { bit: usize },
+    #[error("Timeout at falling edge of data signal for bit {bit}")]
+    DataFallingTimeout { bit: usize },
+    #[error("{0}")]
+    Checksum(#[from] ChecksumError),
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Checksum error, expected {expected}, got {actual}")]
+struct ChecksumError {
+    expected: u8,
+    actual: u8,
+}
+
 impl Dht11Reading {
-    fn from_durations(durations: [u64; NUM_BITS]) -> Option<Self> {
+    // TODO: after sending start signal, just capture state of pin for (50+80)*40 us = 5.2ms, then
+    // analyze afterwards? instead of relying on rising and falling edges to trigger next state
+
+    // TODO: do everything synchronously to avoid executor scheduling lag?
+    async fn try_read(pin: &mut Flex<'_>) -> Result<Self, ReadError> {
+        // set high
+        pin.set_as_output();
+        pin.set_high();
+
+        // must wait at least 1 second before any communication
+        Timer::after_millis(1500).await;
+
+        // set low for at least 18 MILLI SECONDS! NOT MICRO SECONDS
+        pin.set_low();
+        Timer::after_millis(20).await;
+
+        // set high
+        pin.set_high();
+
+        // prepare for read
+        pin.set_pull(Pull::None);
+        pin.set_as_input();
+
+        // DHT sets low after 20-40 us, though we might miss falling edge
+        pin.wait_for_low()
+            .with_timeout(Duration::from_micros(45))
+            .await
+            .map_err(|_| ReadError::StartLowTimeout)?;
+
+        // DHT stays low 80 us, then goes high
+        pin.wait_for_rising_edge()
+            .with_timeout(Duration::from_micros(85))
+            .await
+            .map_err(|_| ReadError::StartRisingTimeout)?;
+
+        // DHT stays high 80 us, then goes low and starts data transmission
+        pin.wait_for_falling_edge()
+            .with_timeout(Duration::from_micros(85))
+            .await
+            .map_err(|_| ReadError::StartFallingTimeout)?;
+
+        let mut high_durations = [0u64; NUM_BITS];
+
+        for (bit_number, duration) in high_durations.iter_mut().enumerate() {
+            // DHT starts low
+
+            // DHT stays low for 50 ms, then goes high
+            pin.wait_for_rising_edge()
+                .with_timeout(Duration::from_micros(55))
+                .await
+                .map_err(|_| ReadError::DataRisingTimeout { bit: bit_number })?;
+
+            // take timestmap after rising edge
+            let high_time = Instant::now().as_micros();
+
+            // DHT stays high EITHER 26-28us or 70um, then goes low
+            // falling edge detection in 26us might be too fast? so we just wait for low
+            pin.wait_for_low()
+                .with_timeout(Duration::from_micros(75))
+                .await
+                .map_err(|_| ReadError::DataFallingTimeout { bit: bit_number })?;
+
+            // take timestamp after falling edge
+            let low_time = Instant::now().as_micros();
+
+            // calculate how long the ping was high for
+            *duration = low_time - high_time;
+        }
+
+        // set high again
+        pin.set_high();
+        pin.set_as_output();
+
+        // try parsing the timings
+        Ok(Self::parse_durations(high_durations)?)
+    }
+
+    fn parse_durations(durations: [u64; NUM_BITS]) -> Result<Self, ChecksumError> {
         let mut bits = [false; NUM_BITS];
         for index in 0..NUM_BITS {
             bits[index] = duration_to_bit(durations[index]);
         }
 
-        let mut chunks = bits.chunks(8);
-        let integral_humidity = bits_to_u8(chunks.next().unwrap().try_into().unwrap());
-        let decimal_humidity = bits_to_u8(chunks.next().unwrap().try_into().unwrap());
-        let integral_temp = bits_to_u8(chunks.next().unwrap().try_into().unwrap());
-        let decimal_temp = bits_to_u8(chunks.next().unwrap().try_into().unwrap());
-        let checksum = bits_to_u8(chunks.next().unwrap().try_into().unwrap());
+        // SAFETY: unwrap OK since we never exceed NUM_BITS
+        let humidity_whole = bits_to_u8(&bits[0..8].try_into().unwrap());
+        let humidity_tenths = bits_to_u8(&bits[8..16].try_into().unwrap());
+        let temp_whole = bits_to_u8(&bits[16..24].try_into().unwrap());
+        let temp_tenths = bits_to_u8(&bits[24..32].try_into().unwrap());
+        let checksum = bits_to_u8(&bits[32..40].try_into().unwrap());
 
-        if integral_humidity + decimal_humidity + integral_temp + decimal_temp != checksum {
-            None
+        let expected_checksum = humidity_whole + humidity_tenths + temp_whole + temp_tenths;
+
+        if expected_checksum != checksum {
+            Err(ChecksumError {
+                expected: expected_checksum,
+                actual: checksum,
+            })
         } else {
-            Some(Self(Reading {
-                temperature: Temperature(WholeAndDecimal {
-                    integer: integral_temp,
-                    decimal: decimal_temp,
-                }),
-                humidity: Humidity(WholeAndDecimal {
-                    integer: integral_humidity,
-                    decimal: decimal_temp,
-                }),
+            Ok(Self(Reading {
+                temperature: Number {
+                    whole: temp_whole,
+                    tenths: temp_tenths,
+                },
+                humidity: Number {
+                    whole: humidity_whole,
+                    tenths: temp_tenths,
+                },
             }))
         }
     }

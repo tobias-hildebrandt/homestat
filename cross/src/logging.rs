@@ -1,6 +1,5 @@
 use core::fmt::{Display, Formatter};
 
-use chrono::TimeDelta;
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
 use embassy_rp::Peri;
@@ -19,15 +18,17 @@ const LOG_FILTER: log::LevelFilter = log::LevelFilter::Info;
 /// Sets up USB logging, spawns logger task.
 pub fn setup_usb_logging(spawner: Spawner, usb: Peri<'static, USB>) {
     let usb_driver = UsbDriver::new(usb, Irqs);
-    spawner.spawn(logger_task(usb_driver)).unwrap();
+    spawner
+        .spawn(logger_task(usb_driver))
+        .expect("unable to spawn usb logging task");
 }
 
 /// USB logging task.
 #[embassy_executor::task]
 async fn logger_task(driver: UsbDriver<'static, USB>) -> ! {
     let mut config = UsbConfig::new(0xaaaa, 0xaaaa);
-    config.manufacturer = Some("todo");
-    config.product = Some("todo");
+    config.manufacturer = Some("Tobias Hildebrandt");
+    config.product = Some("homestat");
     config.serial_number = Some("1");
     config.max_power = 100;
     config.max_packet_size_0 = MAX_PACKET_SIZE;
@@ -60,12 +61,8 @@ async fn logger_task(driver: UsbDriver<'static, USB>) -> ! {
             let level = record.level().as_str();
             let time = TimeLog::now();
             let module = record.module_path().unwrap_or("(no module)");
-            write!(
-                writer,
-                "[{time}] [{level:5}] [{module}] {}\r\n",
-                record.args()
-            )
-            .unwrap();
+            write!(writer, "{time} {level:>5} {module} {}\r\n", record.args())
+                .expect("unable to write to USB logger writer");
         },
         embassy_usb_logger::DummyHandler
     );
@@ -77,7 +74,7 @@ async fn logger_task(driver: UsbDriver<'static, USB>) -> ! {
     panic!("usb logger task ended");
 }
 
-/// Formatted timestamp based on clock ticks.
+/// Formatted timestamp based on microseconds, via [`embassy_time::Instant`].
 pub struct TimeLog(u64);
 
 impl TimeLog {
@@ -89,21 +86,30 @@ impl TimeLog {
 
 impl Display for TimeLog {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
-        let time = TimeDelta::microseconds(self.0.try_into().unwrap());
+        let mut total: i64 = self.0.try_into().unwrap_or_default();
 
-        let days_total = time.num_days();
-        let hours = time.num_hours();
-        let mins = time.num_minutes();
-        let seconds = time.num_seconds();
-        let micros = time
-            .num_microseconds()
-            .unwrap_or(-1)
-            .checked_sub(seconds * 1_000_000)
-            .unwrap_or(-1);
+        const MICROS_PER_SEC: i64 = 1_000_000;
+        const SECS_PER_MIN: i64 = 60;
+        const MINS_PER_HOUR: i64 = 60;
+        const HOURS_PER_DAY: i64 = 24;
 
-        write!(f, "{:03}d ", days_total)?;
+        let days = total / (MICROS_PER_SEC * SECS_PER_MIN * MINS_PER_HOUR * HOURS_PER_DAY);
+        total %= MICROS_PER_SEC * SECS_PER_MIN * MINS_PER_HOUR * HOURS_PER_DAY;
+
+        let hours = total / (MICROS_PER_SEC * SECS_PER_MIN * MINS_PER_HOUR);
+        total %= MICROS_PER_SEC * SECS_PER_MIN * MINS_PER_HOUR;
+
+        let minutes = total / (MICROS_PER_SEC * SECS_PER_MIN);
+        total %= MICROS_PER_SEC * SECS_PER_MIN;
+
+        let seconds = total / MICROS_PER_SEC;
+        total %= MICROS_PER_SEC;
+
+        let micros: i64 = total;
+
+        write!(f, "{:03}d ", days)?;
         write!(f, "{:02}:", hours)?;
-        write!(f, "{:02}:", mins)?;
+        write!(f, "{:02}:", minutes)?;
         write!(f, "{:02}.", seconds)?;
         write!(f, "{:06}", micros)
     }

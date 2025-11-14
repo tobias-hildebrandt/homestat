@@ -58,7 +58,9 @@ pub async fn init_fw_and_pins(
     static CYM43_STATE: StaticCell<cyw43::State> = StaticCell::new();
     let state = CYM43_STATE.init(cyw43::State::new());
     let (net_device, control, runner) = cyw43::new(state, pwr, spi, fw).await;
-    spawner.spawn(cyw43_task(runner)).unwrap();
+    spawner
+        .spawn(cyw43_task(runner))
+        .expect("unable to spawn cyw43 task");
 
     // move control to static storage
     static CONTROL: StaticCell<Control> = StaticCell::new();
@@ -92,7 +94,9 @@ pub async fn init_fw_and_pins(
         seed,
     );
 
-    spawner.spawn(net_task(runner)).unwrap();
+    spawner
+        .spawn(net_task(runner))
+        .expect("unable to spawn net task");
 
     (stack, control)
 }

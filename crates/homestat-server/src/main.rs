@@ -1,4 +1,4 @@
-use homestat_wire::{Humidity, Reading, Temperature, WholeAndDecimal};
+use homestat_wire::{Number, Reading};
 use tracing::info;
 
 fn main() {
@@ -6,14 +6,14 @@ fn main() {
 
     let mut buffer = [0u8; 2048];
     let reading = Reading {
-        temperature: Temperature(WholeAndDecimal {
-            integer: 1,
-            decimal: 2,
-        }),
-        humidity: Humidity(WholeAndDecimal {
-            integer: 3,
-            decimal: 4,
-        }),
+        temperature: Number {
+            whole: 1,
+            tenths: 2,
+        },
+        humidity: Number {
+            whole: 3,
+            tenths: 4,
+        },
     };
 
     let encoded = postcard::to_slice(&reading, &mut buffer);

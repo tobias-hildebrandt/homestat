@@ -58,7 +58,7 @@ async fn main(spawner: Spawner) {
     let (stack, control) = init_fw_and_pins(spawner, init_pins).await;
 
     // spawn dht11 monitor
-    spawn_dht11(spawner, periphs.PIN_22);
+    spawn_dht11(spawner, periphs.PIN_21);
 
     // spawn network task
     spawn_net(spawner, stack, control);
