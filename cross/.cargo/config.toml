@@ -1,8 +1,15 @@
 build.target = "thumbv6m-none-eabi"
 
-# install from https://github.com/raspberrypi/pico-sdk-tools/releases
 [target.'cfg(all(target_arch = "arm", target_os = "none"))']
+# use picotool as runner
+# install from https://github.com/raspberrypi/pico-sdk-tools/releases
 runner = "picotool load --update --verify --execute -t elf"
+
+# rust-analyzer doesn't actually apply this???
+# must use rust-analyzer-wide .vscode/settings.json
+
+# custom getrandom implementation
+rustflags = ['--cfg', 'getrandom_backend="custom"']
 
 
 [env]

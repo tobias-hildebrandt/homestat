@@ -3,5 +3,11 @@
         // order is important (rust-analyzer/rust-analyzer#7764)
         "Cargo.toml",
         "cross/Cargo.toml",
-    ]
+    ],
+    //
+    // rust-analyzer does not apply linkedProject .cargo/config.toml rustflags??
+    // make sure to keep in sync with .envrc or equivalent to reduce r-a cache invalidation
+    "rust-analyzer.cargo.extraEnv": {
+        "RUSTFLAGS": "--cfg getrandom_backend=\"custom\"",
+    },
 }

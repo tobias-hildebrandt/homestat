@@ -8,8 +8,6 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0};
 use embassy_rp::pio::Pio;
 use log::info;
-use rand::rngs::SmallRng;
-use rand::{RngCore, SeedableRng};
 use static_cell::StaticCell;
 
 /// Set of [`embassy_rp::Peripherals`] needed to initialize firmware and pins.
@@ -81,7 +79,7 @@ pub async fn init_fw_and_pins(
     //});
 
     // Generate random seed
-    let seed = SmallRng::seed_from_u64(embassy_time::Instant::now().as_micros()).next_u64();
+    let seed = getrandom::u64().expect("unable to generate random network seed");
 
     info!("network seed: {seed}");
 

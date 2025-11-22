@@ -5,6 +5,7 @@ mod dht11;
 mod init;
 mod logging;
 mod net;
+mod rng;
 
 use dht11::spawn_dht11;
 use init::{InitPins, init_fw_and_pins};
