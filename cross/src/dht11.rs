@@ -1,5 +1,3 @@
-use core::fmt::Display;
-
 use embassy_executor::Spawner;
 use embassy_rp::{
     Peri,
@@ -7,9 +5,10 @@ use embassy_rp::{
 };
 use embassy_sync::{blocking_mutex::raw::ThreadModeRawMutex, mutex::Mutex};
 use embassy_time::{Duration, Instant, Timer, WithTimeout};
-use homestat_wire::{Number, Reading, WithTimestamp};
+use homestat_wire::{
+    ChecksumError, Number, ReadError, Reading, WireMessage, WireMessageDisplay, WithTimestamp,
+};
 use log::{error, info};
-use serde::Serialize;
 
 /// Initializes DHT11 pin and spawns task.
 pub fn spawn_dht11(spawner: Spawner, pin: Peri<'static, impl Pin>) {
@@ -23,85 +22,47 @@ pub fn spawn_dht11(spawner: Spawner, pin: Peri<'static, impl Pin>) {
 const NUM_BITS: usize = 40;
 
 // TODO: replace with single-slot channel?
-pub(crate) static READING: Mutex<ThreadModeRawMutex, Option<WithTimestamp<Option<Reading>>>> =
-    Mutex::new(None);
+pub(crate) static READING: Mutex<ThreadModeRawMutex, Option<WireMessage>> = Mutex::new(None);
 
 /// DHT11 task
 #[embassy_executor::task]
 async fn dht11_task(mut pin: Flex<'static>) {
     loop {
-        let current_reading = Dht11Reading::try_read(&mut pin).await;
+        let current_reading = Dht11Reader::try_read(&mut pin).await;
         // always set high after attempted reading
         pin.set_high();
 
         let timestamp = Instant::now().as_micros();
 
-        match &current_reading {
-            Ok(r) => info!("dht reading at {:0>12} is {}", timestamp, r),
-            Err(e) => {
-                error!("dht reading at {:0>12} is error {:?}", timestamp, e);
-            }
-        }
+        let new_reading = WithTimestamp {
+            micros: timestamp,
+            inner: current_reading,
+        };
+
+        // log
+        match new_reading.inner.is_ok() {
+            true => info!("{}", WireMessageDisplay(&new_reading)),
+            false => error!("{}", WireMessageDisplay(&new_reading)),
+        };
 
         // update our mutex
         {
             let mut reading = READING.lock().await;
-            let new = WithTimestamp {
-                micros: timestamp,
-                inner: current_reading.map(|r| r.0).ok(),
-            };
-            *reading = Some(new);
+            *reading = Some(new_reading);
         }
 
         Timer::after_secs(1).await;
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
-struct Dht11Reading(Reading);
+struct Dht11Reader;
 
-impl Display for Dht11Reading {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(
-            f,
-            "{}.{}degC, {}.{}%RH",
-            self.0.temperature.whole,
-            self.0.temperature.tenths,
-            self.0.humidity.whole,
-            self.0.humidity.tenths,
-        )
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-enum ReadError {
-    #[error("Timeout at low start signal")]
-    StartLowTimeout,
-    #[error("Timeout at rising edge of start signal")]
-    StartRisingTimeout,
-    #[error("Timeout at falling edge of start signal")]
-    StartFallingTimeout,
-    #[error("Timeout at rising edge of data signal for bit {bit}")]
-    DataRisingTimeout { bit: usize },
-    #[error("Timeout at falling edge of data signal for bit {bit}")]
-    DataFallingTimeout { bit: usize },
-    #[error("{0}")]
-    Checksum(#[from] ChecksumError),
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Checksum error, expected {expected}, got {actual}")]
-struct ChecksumError {
-    expected: u8,
-    actual: u8,
-}
-
-impl Dht11Reading {
+impl Dht11Reader {
     // TODO: after sending start signal, just capture state of pin for (50+80)*40 us = 5.2ms, then
     // analyze afterwards? instead of relying on rising and falling edges to trigger next state
 
     // TODO: do everything synchronously to avoid executor scheduling lag?
-    async fn try_read(pin: &mut Flex<'_>) -> Result<Self, ReadError> {
+    async fn try_read(pin: &mut Flex<'_>) -> Result<Reading, ReadError> {
         // set high
         pin.set_as_output();
         pin.set_high();
@@ -174,7 +135,7 @@ impl Dht11Reading {
         Ok(Self::parse_durations(high_durations)?)
     }
 
-    fn parse_durations(durations: [u64; NUM_BITS]) -> Result<Self, ChecksumError> {
+    fn parse_durations(durations: [u64; NUM_BITS]) -> Result<Reading, ChecksumError> {
         let mut bits = [false; NUM_BITS];
         for index in 0..NUM_BITS {
             bits[index] = duration_to_bit(durations[index]);
@@ -195,7 +156,7 @@ impl Dht11Reading {
                 actual: checksum,
             })
         } else {
-            Ok(Self(Reading {
+            Ok(Reading {
                 temperature: Number {
                     whole: temp_whole,
                     tenths: temp_tenths,
@@ -204,7 +165,7 @@ impl Dht11Reading {
                     whole: humidity_whole,
                     tenths: temp_tenths,
                 },
-            }))
+            })
         }
     }
 }

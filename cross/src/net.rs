@@ -1,4 +1,4 @@
-use core::{fmt::Write as _, net::SocketAddr};
+use core::net::SocketAddr;
 use cyw43::{Control, JoinOptions};
 use embassy_executor::Spawner;
 use embassy_net::{
@@ -8,33 +8,29 @@ use embassy_net::{
 use embassy_time::{Duration, Timer, WithTimeout};
 use embedded_io_async::Write as _;
 use embedded_nal_async::TcpConnect;
-use heapless::Vec;
 use log::{error, info};
 
 use crate::dht11::READING;
 
 const SSID: &str = env!("WIFI_SSID");
+const SERVER_SOCKET_ADDR: SocketAddr = SocketAddr::new(
+    const_str::ip_addr!(env!("SERVER_IP")),
+    const_str::parse!(env!("SERVER_PORT"), u16),
+);
+
+const WRITE_BUFFER_SIZE: usize = 128;
 
 /// Initializes wifi and spawns net task.
 pub fn spawn_net(spawner: Spawner, stack: Stack<'static>, control: &'static mut Control<'static>) {
-    // TODO: move to build-time parse -- in build.rs or a proc macro
-    let server_address = env!("SERVER_ADDRESS")
-        .parse()
-        .expect("unable to parse server address");
-
     spawner
-        .spawn(net_task(stack, control, server_address))
+        .spawn(net_task(stack, control))
         .expect("unable to spawn net task");
 }
 
 #[embassy_executor::task]
-async fn net_task(
-    stack: Stack<'static>,
-    control: &'static mut Control<'static>,
-    server_address: SocketAddr,
-) {
+async fn net_task(stack: Stack<'static>, control: &'static mut Control<'static>) {
     loop {
-        let main_res = net_loop(stack, control, server_address).await;
+        let main_res = net_loop(stack, control).await;
         if let Err(e) = main_res {
             error!("net loop error: {e:?}");
             Timer::after_secs(2).await;
@@ -61,7 +57,7 @@ enum NetLoopError {
     #[error("TCP reset at TCP connect")]
     TcpConnectReset,
     #[error("Unable to write serialized message to buffer")]
-    BufferWrite,
+    BufferWrite(#[from] postcard::Error),
     #[error("Timeout at mutex acquire")]
     MutexTimeout,
     #[error("Timeout at TCP write")]
@@ -70,11 +66,7 @@ enum NetLoopError {
     TcpWriteConnectionReset,
 }
 
-async fn net_loop(
-    stack: Stack<'_>,
-    control: &mut Control<'_>,
-    server_address: SocketAddr,
-) -> Result<(), NetLoopError> {
+async fn net_loop(stack: Stack<'_>, control: &mut Control<'_>) -> Result<(), NetLoopError> {
     let options = JoinOptions::new(env!("WIFI_PASSWORD").as_bytes());
 
     // TODO: move all timeouts to config file/env vars
@@ -132,47 +124,42 @@ async fn net_loop(
     let tcp_client = TcpClient::new(stack, &client_state);
 
     let mut socket: TcpConnection<'_, _, _, _> = tcp_client
-        .connect(server_address)
+        .connect(SERVER_SOCKET_ADDR)
         .with_timeout(Duration::from_secs(1))
         .await
         .map_err(|_e| NetLoopError::TcpConnectTimeout)?
         .map_err(|_e| NetLoopError::TcpConnectReset)?;
 
-    let mut buffer = MessageBuffer::<256>::default();
+    // no need to periodically clear buffer -- postcard returns slice that it writes to
+    // (just make sure not to read past, since it could be garbage)
+    let mut buffer = [0u8; WRITE_BUFFER_SIZE];
 
     loop {
-        buffer.0.clear();
-        {
+        // take from mutex
+        let reading = {
             let mut lock = READING
                 .lock()
                 .with_timeout(Duration::from_secs(2))
                 .await
                 .map_err(|_e| NetLoopError::MutexTimeout)?;
-            let reading = lock.take();
-            // TODO: postcard
-            writeln!(buffer, "{:?}", reading).map_err(|_e| NetLoopError::BufferWrite)?;
+            lock.take()
+        };
+
+        if let Some(reading) = reading {
+            // postcard requires mut slice, not vec -- it doesn't call i.e. push()
+            let message_bytes =
+                postcard::to_slice(&reading, &mut buffer[..]).map_err(NetLoopError::BufferWrite)?;
+
+            let bytes_written = socket
+                .write(message_bytes)
+                .with_timeout(Duration::from_secs(2))
+                .await
+                .map_err(|_e| NetLoopError::TcpWriteTimeout)?
+                .map_err(|_e| NetLoopError::TcpWriteConnectionReset)?;
+
+            info!("wrote {bytes_written} bytes to socket");
         }
 
-        let bytes_written = socket
-            .write(&buffer.0)
-            .with_timeout(Duration::from_secs(2))
-            .await
-            .map_err(|_e| NetLoopError::TcpWriteTimeout)?
-            .map_err(|_e| NetLoopError::TcpWriteConnectionReset)?;
-
-        info!("wrote {bytes_written} bytes to socket");
-
         Timer::after_secs(2).await;
-    }
-}
-
-#[derive(Default)]
-struct MessageBuffer<const SIZE: usize>(Vec<u8, SIZE>);
-
-impl<const SIZE: usize> core::fmt::Write for MessageBuffer<SIZE> {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.0
-            .extend_from_slice(s.as_bytes())
-            .map_err(|_e| core::fmt::Error)
     }
 }

@@ -4,7 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-chacha20poly1305 = { version = "0.10.1", default-features = false, features = [
-    "heapless",
-] }
 serde = { version = "1.0.225", default-features = false, features = ["derive"] }
+thiserror = { version = "2.0.17", default-features = false }
