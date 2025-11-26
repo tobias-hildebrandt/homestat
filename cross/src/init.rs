@@ -25,17 +25,14 @@ pub async fn init_fw_and_pins(
     spawner: Spawner,
     periphs: InitPins,
 ) -> (Stack<'static>, &'static mut Control<'static>) {
-    // firmware
-    let fw = include_bytes!("../../misc/43439A0.bin");
-    // wifi firmware?
-    let clm = include_bytes!("../../misc/43439A0_clm.bin");
+    // 43439a0 wifi firmware
+    let fw = unsafe { core::slice::from_raw_parts(0x101c1000 as *const u8, 0x3ccea) };
+    // "Country Locale Matrix"
+    // https://www.infineon.com/assets/row/public/documents/30/96/infineon-wi-fi-glossary-software-en.pdf
+    let clm = unsafe { core::slice::from_raw_parts(0x101fe000 as *const u8, 0x1290) };
 
-    // To make flashing faster for development, you may want to flash the firmwares independently
-    // at hardcoded addresses, instead of baking them into the program with `include_bytes!`:
-    //     probe-rs download ../../cyw43-firmware/43439A0.bin --binary-format bin --chip RP2040 --base-address 0x10100000
-    //     probe-rs download ../../cyw43-firmware/43439A0_clm.bin --binary-format bin --chip RP2040 --base-address 0x10140000
-    //let fw = unsafe { core::slice::from_raw_parts(0x10100000 as *const u8, 230321) };
-    //let clm = unsafe { core::slice::from_raw_parts(0x10140000 as *const u8, 4752) };
+    info!("first bytes of fw: {:x?}", &fw[0..5]);
+    info!("first bytes of clm: {:x?}", &clm[0..5]);
 
     // configure pins
     let pwr = Output::new(periphs.pin23, Level::Low);

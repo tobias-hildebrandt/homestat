@@ -8,6 +8,7 @@ mod net;
 mod rng;
 
 use dht11::spawn_dht11;
+use embassy_time::Timer;
 use init::{InitPins, init_fw_and_pins};
 use logging::setup_usb_logging;
 
@@ -46,6 +47,8 @@ async fn main(spawner: Spawner) {
 
     // immediately set up USB logging
     setup_usb_logging(spawner, periphs.USB);
+
+    Timer::after_millis(1).await;
 
     info!("usb logging complete");
 

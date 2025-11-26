@@ -18,6 +18,9 @@ test = false
 doctest = false
 bench = false
 
+[build-dependencies]
+homestat-build = { path = "../crates/homestat-build" }
+
 [dependencies]
 # workspace libs
 homestat-wire = { path = "../crates/homestat-wire" }

@@ -1,0 +1,12 @@
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+homestat-build = { path = "../homestat-build" }
+
+anyhow = "1.0.100"
+camino = "1.2.1"
+clap = { version = "4.5.53", features = ["derive"] }
+xshell = "0.2.7"
