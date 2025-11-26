@@ -66,7 +66,7 @@ Their license is downloaded along with the blobs.
   - [ ] sleep mode
   - [ ] flash memory for boot count?
   - [ ] setup USB before spawning task
-  - [ ] macro for firmware flash slices
+  - [x] macro for firmware flash slices
   - [ ] macro, config file for pins
 - [ ] server
   - [x] parse messages from probes

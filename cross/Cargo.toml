@@ -24,6 +24,8 @@ homestat-build = { path = "../crates/homestat-build" }
 [dependencies]
 # workspace libs
 homestat-wire = { path = "../crates/homestat-wire" }
+homestat-build = { path = "../crates/homestat-build", default-features = false }
+homestat-macro = { path = "../crates/homestat-macro" }
 
 # embassy
 embassy-embedded-hal = { version = "0.5.0", features = ["defmt"] }

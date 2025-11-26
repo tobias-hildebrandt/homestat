@@ -1,0 +1,10 @@
+{
+  "main": {
+    "origin": "0x1234",
+    "length": "0x5678"
+  },
+  "clm": {
+    "origin": "0x8765",
+    "length": "0x4321"
+  }
+}

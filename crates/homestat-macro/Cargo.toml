@@ -1,0 +1,19 @@
+[package]
+name = "homestat-macro"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+homestat-build = { path = "../homestat-build", features = ["reflect"] }
+reflect-instantiate = { path = "../reflect-instantiate" }
+
+darling = "0.21.3"
+proc-macro2 = "1.0.103"
+quote = "1.0.42"
+syn = "2.0.110"
+
+[dev-dependencies]
+tempfile = "3.23.0"

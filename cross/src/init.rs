@@ -7,6 +7,7 @@ use embassy_rp::Peri;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_24, PIN_25, PIN_29, PIO0};
 use embassy_rp::pio::Pio;
+use homestat_macro::include_cyw_regions;
 use log::info;
 use static_cell::StaticCell;
 
@@ -25,11 +26,10 @@ pub async fn init_fw_and_pins(
     spawner: Spawner,
     periphs: InitPins,
 ) -> (Stack<'static>, &'static mut Control<'static>) {
-    // 43439a0 wifi firmware
-    let fw = unsafe { core::slice::from_raw_parts(0x101c1000 as *const u8, 0x3ccea) };
-    // "Country Locale Matrix"
-    // https://www.infineon.com/assets/row/public/documents/30/96/infineon-wi-fi-glossary-software-en.pdf
-    let clm = unsafe { core::slice::from_raw_parts(0x101fe000 as *const u8, 0x1290) };
+    let regions = include_cyw_regions!("../misc/firmware/flash-metadata.json");
+
+    let fw = unsafe { regions.main.as_slice() };
+    let clm = unsafe { regions.clm.as_slice() };
 
     info!("first bytes of fw: {:x?}", &fw[0..5]);
     info!("first bytes of clm: {:x?}", &clm[0..5]);

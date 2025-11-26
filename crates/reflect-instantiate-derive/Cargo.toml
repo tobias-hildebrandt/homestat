@@ -1,0 +1,17 @@
+[package]
+name = "reflect-instantiate-derive"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+darling = "0.21.3"
+proc-macro2 = "1.0.103"
+quote = "1.0.42"
+syn = "2.0.110"
+derive-quote-to-tokens = { version = "0.1.1" }
+
+[dev-dependencies]
+reflect-instantiate = { path = "../reflect-instantiate" }
