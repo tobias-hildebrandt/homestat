@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                    INSERT INTO receive\n                        (recv_timestamp, source, micros, error)\n                    VALUES (?, ?, ?, ?);",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "8d6e216c0a137d16d9bd8c4be17da2c4b677b107f19a65ad4421deb5c5ae2fdf"
+}

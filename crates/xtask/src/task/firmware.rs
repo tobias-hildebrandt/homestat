@@ -6,7 +6,7 @@ use homestat_build::Cyw43439Regions;
 use xshell::{Shell, cmd};
 
 use crate::{
-    CARGO_WORKSPACE,
+    CARGO_WORKSPACE, enum_call,
     misc::{download_file, strip_cargo_dir},
     newtype_args,
     task::Runnable,
@@ -34,17 +34,19 @@ pub(crate) enum FirmwareTask {
     /// Check status of firmware files and flash information.
     Status(Status),
     /// Clean downloaded firmware files.
+    #[clap(aliases = ["wipe", "delete"])]
     Clean(Clean),
 }
 
 impl Runnable for FirmwareTask {
     fn run(&self, sh: &mut Shell) -> anyhow::Result<()> {
-        match self {
-            FirmwareTask::Download(download) => download.run(sh),
-            FirmwareTask::Flash(flash) => flash.run(sh),
-            FirmwareTask::Status(status) => status.run(sh),
-            FirmwareTask::Clean(clean) => clean.run(sh),
-        }
+        enum_call!(
+            FirmwareTask,
+            [Download, Flash, Status, Clean],
+            self,
+            inner,
+            { inner.run(sh) }
+        )
     }
 }
 

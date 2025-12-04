@@ -1,6 +1,9 @@
 use clap::Subcommand;
 use xshell::Shell;
 
+use crate::enum_call;
+
+pub(crate) mod db;
 pub(crate) mod firmware;
 pub(crate) mod pico;
 
@@ -14,29 +17,15 @@ pub(crate) enum Task {
     Firmware(firmware::FirmwareTask),
     #[command(subcommand)]
     Pico(pico::PicoTask),
+    #[command(subcommand)]
+    #[clap(alias = "db")]
+    Database(db::DbTask),
 }
 
 impl Runnable for Task {
     fn run(&self, sh: &mut Shell) -> anyhow::Result<()> {
-        match self {
-            Task::Firmware(command) => command.run(sh),
-            Task::Pico(command) => command.run(sh),
-        }
+        enum_call!(Task, [Firmware, Pico, Database], self, inner, {
+            inner.run(sh)
+        })
     }
-}
-
-/// Declares a wrapper struct with a single `args` field.
-///
-/// ### Arguments
-/// - `$wrapper`: Identifier of the new wrapper struct
-/// - `$args`: Type of the inner args field.
-#[macro_export]
-macro_rules! newtype_args {
-    ($wrapper: ident, $args: ty) => {
-        #[derive(Debug, Args)]
-        pub(crate) struct $wrapper {
-            #[command(flatten)]
-            pub(crate) args: $args,
-        }
-    };
 }

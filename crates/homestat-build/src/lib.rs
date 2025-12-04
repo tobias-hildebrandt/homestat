@@ -117,13 +117,6 @@ mod full {
         where
             S: Serializer,
         {
-            let mut s = hex::encode(val.to_be_bytes());
-            let first_non_zero = s.chars().position(|ch| ch != '0');
-
-            if let Some(first_non_zero) = first_non_zero {
-                s = s.chars().skip(first_non_zero).collect();
-            }
-
             let hexstring = format!("0x{:x}", val);
 
             hexstring.serialize(serializer)

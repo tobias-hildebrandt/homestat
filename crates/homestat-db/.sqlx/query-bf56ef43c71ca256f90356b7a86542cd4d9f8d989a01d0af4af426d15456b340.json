@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n            SELECT\n                recv_timestamp, source, micros,\n                reading.celcius_whole, reading.celcius_tenth,\n                reading.humidity_whole, reading.humidity_tenth,\n                error.error\n            FROM receive\n            LEFT JOIN reading ON receive.reading = reading.id\n            LEFT JOIN error ON receive.error = error.id\n            LIMIT ?\n            OFFSET ?;",
+  "describe": {
+    "columns": [
+      {
+        "name": "recv_timestamp",
+        "ordinal": 0,
+        "type_info": "Integer"
+      },
+      {
+        "name": "source",
+        "ordinal": 1,
+        "type_info": "Integer"
+      },
+      {
+        "name": "micros",
+        "ordinal": 2,
+        "type_info": "Integer"
+      },
+      {
+        "name": "celcius_whole",
+        "ordinal": 3,
+        "type_info": "Integer"
+      },
+      {
+        "name": "celcius_tenth",
+        "ordinal": 4,
+        "type_info": "Integer"
+      },
+      {
+        "name": "humidity_whole",
+        "ordinal": 5,
+        "type_info": "Integer"
+      },
+      {
+        "name": "humidity_tenth",
+        "ordinal": 6,
+        "type_info": "Integer"
+      },
+      {
+        "name": "error",
+        "ordinal": 7,
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "bf56ef43c71ca256f90356b7a86542cd4d9f8d989a01d0af4af426d15456b340"
+}

@@ -29,6 +29,10 @@ export WIFI_SSID="your ssid here"
 export WIFI_PASSWORD="your wifi password here"
 export SERVER_IP="your server ip here"
 export SERVER_PORT="your server port here"
+
+export DATABASE_URL="sqlite:path/to/database"
+# or if you want to work on database code without a database
+export SQLX_OFFLINE=1
 ```
 
 ### Download and Flash Firmware to Pico W
@@ -45,6 +49,12 @@ export SERVER_PORT="your server port here"
   - ~. to quit
 - `tio -b 57600 -t /dev/ttyACM0`
   - CTRL+T Q to quit
+
+### Setup Database
+- `cargo xtask database init`
+
+### Run Server
+- `cargo run -p homestat-server`
 
 ## License
 Unless otherwise noted, this project is released under AGPLv3+.
@@ -70,7 +80,7 @@ Their license is downloaded along with the blobs.
   - [ ] macro, config file for pins
 - [ ] server
   - [x] parse messages from probes
-  - [ ] store in database
+  - [x] store in database
   - [ ] contact external APIs?
     - [ ] enedis/EDF, etc?
   - [ ] grafana as code?

@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                    SELECT id\n                    FROM reading\n                    WHERE (\n                        celcius_whole = ?\n                        AND celcius_tenth = ?\n                        AND humidity_whole = ?\n                        AND humidity_tenth = ?\n                    );",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "32e0e3532ac62938289942aa6e1d3e9099c9fa6aa970a9aa1fb5d534b2411923"
+}

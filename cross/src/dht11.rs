@@ -148,7 +148,13 @@ impl Dht11Reader {
         let temp_tenths = bits_to_u8(&bits[24..32].try_into().unwrap());
         let checksum = bits_to_u8(&bits[32..40].try_into().unwrap());
 
-        let expected_checksum = humidity_whole + humidity_tenths + temp_whole + temp_tenths;
+        let expected_checksum = humidity_whole
+            .overflowing_add(humidity_tenths)
+            .0
+            .overflowing_add(temp_whole)
+            .0
+            .overflowing_add(temp_tenths)
+            .0;
 
         if expected_checksum != checksum {
             Err(ChecksumError {

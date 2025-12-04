@@ -48,7 +48,7 @@ async fn main(spawner: Spawner) {
     // immediately set up USB logging
     setup_usb_logging(spawner, periphs.USB);
 
-    Timer::after_millis(1).await;
+    Timer::after_millis(1000).await;
 
     info!("usb logging complete");
 
