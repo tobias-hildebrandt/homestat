@@ -146,7 +146,7 @@ impl HomestatRecord {
                     reading.humidity.whole,
                     reading.humidity.tenths,
                 )
-                .execute(&mut *transaction)
+                .execute(transaction.as_mut())
                 .await?;
 
                 // get row id
@@ -157,7 +157,7 @@ impl HomestatRecord {
                     reading.humidity.whole,
                     reading.humidity.tenths,
                 )
-                .fetch_one(&mut *transaction)
+                .fetch_one(transaction.as_mut())
                 .await?
                 .id;
 
@@ -169,7 +169,7 @@ impl HomestatRecord {
                     micros,
                     reading_id
                 )
-                .execute(&mut *transaction)
+                .execute(transaction.as_mut())
                 .await?;
             }
             Err(error) => {
@@ -177,12 +177,12 @@ impl HomestatRecord {
 
                 // insert
                 sqlx::query_file!("queries/error_insert.sql", error)
-                    .execute(&mut *transaction)
+                    .execute(transaction.as_mut())
                     .await?;
 
                 // get row id
                 let error_id = sqlx::query_file!("queries/error_get_id.sql", error)
-                    .fetch_one(&mut *transaction)
+                    .fetch_one(transaction.as_mut())
                     .await?
                     .id;
 
@@ -194,7 +194,7 @@ impl HomestatRecord {
                     micros,
                     error_id
                 )
-                .execute(&mut *transaction)
+                .execute(transaction.as_mut())
                 .await?;
             }
         };

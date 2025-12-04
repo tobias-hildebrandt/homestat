@@ -81,6 +81,7 @@ Their license is downloaded along with the blobs.
 - [ ] server
   - [x] parse messages from probes
   - [x] store in database
+    - [ ] tidy, optimize schema
   - [ ] contact external APIs?
     - [ ] enedis/EDF, etc?
   - [ ] grafana as code?
@@ -97,6 +98,8 @@ Their license is downloaded along with the blobs.
   - [x] build and upload to pico
     - [ ] add device flags
     - [ ] add cargo passthrough flags
+  - [x] db commands
+    - [ ] query from CLI?
   - [ ] tests
   - [ ] run server
   - [ ] envrc management?

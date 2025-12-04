@@ -6,13 +6,13 @@ use crate::task::Runnable;
 /// Database tasks.
 #[derive(Debug, Subcommand)]
 pub(crate) enum DbTask {
-    /// Delete database files.
+    /// Delete database.
     #[clap(alias = "wipe")]
     Delete,
-    /// Initialize database file and run migrations.
+    /// Initialize database and run migrations.
     #[clap(alias = "create")]
     Init,
-    /// Delete database file then initialize it.
+    /// Delete database then create a new one and run migrations.
     #[clap(alias = "reinit")]
     Reset,
     /// Prepare .sqlx files.
