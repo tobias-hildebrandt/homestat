@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n                    SELECT id\n                    FROM error\n                    WHERE (\n                        error = ?\n                    );",
+  "query": "SELECT id\nFROM error\nWHERE (\n    error = ?\n);\n",
   "describe": {
     "columns": [
       {
@@ -16,5 +16,5 @@
       false
     ]
   },
-  "hash": "a2cbcb138fe8a0a35c2e1c78d08063b68584a257560b628085c24bffec8efcb8"
+  "hash": "006b368ee31795a70276bbef132bb3fbea9ba738cfc95ca3c9437aabefc93606"
 }

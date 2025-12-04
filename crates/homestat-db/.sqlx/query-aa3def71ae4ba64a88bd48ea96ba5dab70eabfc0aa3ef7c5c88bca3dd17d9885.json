@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO error\n    (error)\nVALUES (?);\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "aa3def71ae4ba64a88bd48ea96ba5dab70eabfc0aa3ef7c5c88bca3dd17d9885"
+}

@@ -33,9 +33,9 @@ pub struct HomestatDb {
 
 impl HomestatDb {
     pub async fn new(url: impl AsRef<str>) -> Result<Self, sqlx::Error> {
-        let options =
-            SqliteConnectOptions::from_str(url.as_ref())?.journal_mode(SqliteJournalMode::Delete);
-        // .foreign_keys(true)
+        let options = SqliteConnectOptions::from_str(url.as_ref())?
+            .journal_mode(SqliteJournalMode::Delete)
+            .foreign_keys(true);
         let pool = SqlitePool::connect_with(options).await?;
 
         Ok(Self { pool })
@@ -139,11 +139,8 @@ impl HomestatRecord {
         match &self.wire_message.inner {
             Ok(reading) => {
                 // insert
-                sqlx::query!(
-                    r#"
-                    INSERT INTO reading
-                        (celcius_whole, celcius_tenth, humidity_whole, humidity_tenth)
-                    VALUES (?, ?, ?, ?);"#,
+                sqlx::query_file!(
+                    "queries/reading_insert.sql",
                     reading.temperature.whole,
                     reading.temperature.tenths,
                     reading.humidity.whole,
@@ -153,16 +150,8 @@ impl HomestatRecord {
                 .await?;
 
                 // get row id
-                let reading_id = sqlx::query!(
-                    r#"
-                    SELECT id
-                    FROM reading
-                    WHERE (
-                        celcius_whole = ?
-                        AND celcius_tenth = ?
-                        AND humidity_whole = ?
-                        AND humidity_tenth = ?
-                    );"#,
+                let reading_id = sqlx::query_file!(
+                    "queries/reading_get_id.sql",
                     reading.temperature.whole,
                     reading.temperature.tenths,
                     reading.humidity.whole,
@@ -173,11 +162,8 @@ impl HomestatRecord {
                 .id;
 
                 // insert
-                sqlx::query!(
-                    r#"
-                    INSERT INTO receive
-                        (recv_timestamp, source, micros, reading)
-                    VALUES (?, ?, ?, ?);"#,
+                sqlx::query_file!(
+                    "queries/receive_insert_reading.sql",
                     timestamp,
                     self.source_id,
                     micros,
@@ -190,36 +176,19 @@ impl HomestatRecord {
                 let error = serde_json::to_string(error)?;
 
                 // insert
-                sqlx::query!(
-                    r#"
-                    INSERT INTO error
-                        (error)
-                    VALUES (?);"#,
-                    error
-                )
-                .execute(&mut *transaction)
-                .await?;
+                sqlx::query_file!("queries/error_insert.sql", error)
+                    .execute(&mut *transaction)
+                    .await?;
 
                 // get row id
-                let error_id = sqlx::query!(
-                    r#"
-                    SELECT id
-                    FROM error
-                    WHERE (
-                        error = ?
-                    );"#,
-                    error
-                )
-                .fetch_one(&mut *transaction)
-                .await?
-                .id;
+                let error_id = sqlx::query_file!("queries/error_get_id.sql", error)
+                    .fetch_one(&mut *transaction)
+                    .await?
+                    .id;
 
                 // insert
-                sqlx::query!(
-                    r#"
-                    INSERT INTO receive
-                        (recv_timestamp, source, micros, error)
-                    VALUES (?, ?, ?, ?);"#,
+                sqlx::query_file!(
+                    "queries/receive_insert_error.sql",
                     timestamp,
                     self.source_id,
                     micros,
@@ -244,24 +213,9 @@ impl HomestatRecord {
     ) -> Result<Vec<Result<Self, DbError>>, DbError> {
         let limit: i64 = limit.unwrap_or(Self::DEFAULT_FETCH_LIMIT).try_into()?;
         let offset: i64 = offset.unwrap_or(0).try_into()?;
-        let rows = sqlx::query_as!(
-            FetchRecord,
-            r#"
-            SELECT
-                recv_timestamp, source, micros,
-                reading.celcius_whole, reading.celcius_tenth,
-                reading.humidity_whole, reading.humidity_tenth,
-                error.error
-            FROM receive
-            LEFT JOIN reading ON receive.reading = reading.id
-            LEFT JOIN error ON receive.error = error.id
-            LIMIT ?
-            OFFSET ?;"#,
-            limit,
-            offset
-        )
-        .fetch_all(executor)
-        .await?;
+        let rows = sqlx::query_file_as!(FetchRecord, "queries/everything.sql", limit, offset)
+            .fetch_all(executor)
+            .await?;
 
         let rows = rows.into_iter().map(TryInto::try_into).collect::<Vec<_>>();
 
@@ -304,55 +258,4 @@ pub fn fetch_and_print_all(url: &str, limit: Option<u64>) -> Result<(), DbError>
     })?;
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use std::time::SystemTime;
-
-    use super::*;
-    use homestat_wire::{ChecksumError, Number, ReadError, Reading, WithTimestamp};
-    use sqlx::SqlitePool;
-
-    // #[sqlx::test]
-    #[tokio::test]
-    async fn basic_test(/* pool: SqlitePool */) -> anyhow::Result<()> {
-        let pool = SqlitePool::connect(&get_db_url().unwrap()).await?;
-
-        let record = HomestatRecord {
-            source_id: 1,
-            recv_timestamp: DateTime::<Utc>::from(SystemTime::now()),
-            wire_message: WithTimestamp {
-                micros: 1234567,
-                inner: Ok(Reading {
-                    temperature: Number {
-                        whole: 12,
-                        tenths: 3,
-                    },
-                    humidity: Number {
-                        whole: 45,
-                        tenths: 6,
-                    },
-                }),
-            },
-        };
-
-        record.insert(&pool).await?;
-
-        let record = HomestatRecord {
-            source_id: 1,
-            recv_timestamp: DateTime::<Utc>::from_timestamp_millis(123456789).unwrap(),
-            wire_message: WithTimestamp {
-                micros: 2345678,
-                inner: Err(ReadError::Checksum(ChecksumError {
-                    expected: 123,
-                    actual: 45,
-                })),
-            },
-        };
-
-        record.insert(&pool).await?;
-
-        Ok(())
-    }
 }

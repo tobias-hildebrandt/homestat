@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO reading\n    (celcius_whole, celcius_tenth, humidity_whole, humidity_tenth)\nVALUES (?, ?, ?, ?);\n",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "54907091109d5201d402b037ce825aea820fab8bd1ee21a269d981aa43794b68"
+}

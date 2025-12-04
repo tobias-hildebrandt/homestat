@@ -3,18 +3,20 @@ use xshell::cmd;
 
 use crate::task::Runnable;
 
-/// Firmware tasks.
+/// Database tasks.
 #[derive(Debug, Subcommand)]
 pub(crate) enum DbTask {
-    /// Delete database files
+    /// Delete database files.
     #[clap(alias = "wipe")]
     Delete,
-    /// Initialize database files
+    /// Initialize database file and run migrations.
     #[clap(alias = "create")]
     Init,
-    /// Delete database files, then recreate them
+    /// Delete database file then initialize it.
     #[clap(alias = "reinit")]
     Reset,
+    /// Prepare .sqlx files.
+    Prepare,
 }
 
 impl Runnable for DbTask {
@@ -23,6 +25,7 @@ impl Runnable for DbTask {
             DbTask::Delete => Delete.run(sh),
             DbTask::Init => Init.run(sh),
             DbTask::Reset => Reset.run(sh),
+            DbTask::Prepare => PrepareSqlx.run(sh),
         }
     }
 }
@@ -31,17 +34,6 @@ struct Delete;
 
 impl Runnable for Delete {
     fn run(&self, sh: &mut xshell::Shell) -> anyhow::Result<()> {
-        // wipe .sqlx dir?
-        // let sqlx_dir = Utf8PathBuf::from(env!("CARGO_WORKSPACE_DIR"))
-        //     .join("crates")
-        //     .join("homestat-db")
-        //     .join(".sqlx");
-
-        // for entry in std::fs::read_dir(sqlx_dir)? {
-        //     let entry = entry?;
-        //     std::fs::remove_file(entry.path())?;
-        // }
-
         if let Ok(database_path) = std::env::var("DATABASE_URL") {
             let database_path: &str = database_path
                 .split(':')
@@ -65,7 +57,6 @@ impl Runnable for Init {
     fn run(&self, sh: &mut xshell::Shell) -> anyhow::Result<()> {
         cmd!(sh, "env -C crates/homestat-db sqlx database create").run()?;
         cmd!(sh, "env -C crates/homestat-db sqlx migrate run").run()?;
-        cmd!(sh, "env -C crates/homestat-db cargo sqlx prepare").run()?;
 
         Ok(())
     }
@@ -77,6 +68,15 @@ impl Runnable for Reset {
     fn run(&self, sh: &mut xshell::Shell) -> anyhow::Result<()> {
         Delete.run(sh)?;
         Init.run(sh)?;
+        Ok(())
+    }
+}
+
+struct PrepareSqlx;
+
+impl Runnable for PrepareSqlx {
+    fn run(&self, sh: &mut xshell::Shell) -> anyhow::Result<()> {
+        cmd!(sh, "env -C crates/homestat-db cargo sqlx prepare").run()?;
         Ok(())
     }
 }
