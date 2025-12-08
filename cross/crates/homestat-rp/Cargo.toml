@@ -66,6 +66,7 @@ pio = "0.3.0"
 
 # cortex-m specifics
 cortex-m-rt = "0.7.5"
+cortex-m = "0.7.6"
 panic-probe = { version = "1.0.0", features = ["print-defmt"] }
 
 # std replacements

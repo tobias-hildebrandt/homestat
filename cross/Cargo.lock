@@ -1333,6 +1333,7 @@ dependencies = [
  "blake2",
  "chrono",
  "const-str",
+ "cortex-m",
  "cortex-m-rt",
  "cyw43",
  "cyw43-pio",
