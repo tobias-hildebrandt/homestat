@@ -68,14 +68,14 @@ Their license is downloaded along with the blobs.
 ## TODO
 - [ ] embedded
   - [x] serial logging
+    - [ ] rework, calls should optionally wait until data is completely sent
   - [x] dht11
   - [x] wifi
   - [x] embassy framework
-    - [ ] migrate away from async?
-  - [ ] on-board temp measurement
-  - [ ] sleep mode
+    - [ ] migrate away from async? would simplify main logic loop
+  - [ ] board built-in temp measurement for diagnostics?
+  - [ ] sleep mode (in branch `deepsleep`)
   - [ ] flash memory for boot count?
-  - [ ] setup USB before spawning task
   - [x] macro for firmware flash slices
   - [ ] macro, config file for pins
 - [ ] server
