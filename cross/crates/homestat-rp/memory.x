@@ -5,8 +5,8 @@ INCLUDE homestat.x
 MEMORY {
     /* pico boot2 */
     BOOT2 : ORIGIN = 0x10000000, LENGTH = 0x100
-    /* main program text section */
-    FLASH : ORIGIN = 0x10000100, LENGTH = 2048K - 0x100 - cyw43_clm_length - cyw43_clm_length
+    /* main program */
+    FLASH : ORIGIN = 0x10000100, LENGTH = 2048K - 0x100 - cyw43_main_length - cyw43_clm_length
     /* cyw43 main firmware */
     CYW_MAIN : ORIGIN = cyw43_main_origin, LENGTH = cyw43_main_length
     /* cyw43 country locale matrix */
