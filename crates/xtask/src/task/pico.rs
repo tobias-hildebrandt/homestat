@@ -16,10 +16,10 @@ impl Runnable for PicoTask {
     fn run(&self, sh: &mut Shell) -> anyhow::Result<()> {
         match self {
             PicoTask::Build => {
-                cmd!(sh, "env -C cross cargo build --release").run()?;
+                cmd!(sh, "env -C cross cargo build -p homestat-rp --release").run()?;
             }
             PicoTask::Upload => {
-                cmd!(sh, "env -C cross cargo run --release").run()?;
+                cmd!(sh, "env -C cross cargo run -p homestat-rp --release").run()?;
             }
         }
 
